@@ -1,6 +1,6 @@
 ---
 name: vmos-edge-container-api
-description: Use this skill when managing VMOS Edge cloud phone containers through the Container API. Covers host queries, instance lifecycle, batch operations, app distribution, async polling, and the Query -> Plan -> Execute -> Verify workflow.
+description: Use this skill when managing VMOS Edge cloud phone containers through the Container API via the host machine IP (`host_ip`). Covers host queries, instance lifecycle, db_id/cloud_ip lookup, batch operations, app distribution, async polling, and the Query -> Plan -> Execute -> Verify workflow. Do not use this skill for direct cloud_ip device control.
 ---
 
 # VMOS Edge Container Management
@@ -17,6 +17,8 @@ description: Use this skill when managing VMOS Edge cloud phone containers throu
 ## 数据与字段规则
 
 - Base URL 形态为 `http://{host_ip}:18182`
+- 这个 skill 的入口是宿主机 IP（`host_ip`）
+- 如果用户给的是 `cloud_ip`，说明当前应该切到 `vmos-edge-control-api`
 - 普通请求默认 `application/json`
 - 文件上传默认 `multipart/form-data`
 - 不要默认使用 `application/yaml`

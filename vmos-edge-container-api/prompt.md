@@ -5,6 +5,8 @@
 ## 连接与数据格式
 
 - Base URL: `http://{{HOST_IP}}:18182`
+- 这个 skill 的入口是宿主机 IP（`host_ip`），不是云机 IP（`cloud_ip`）。
+- 如果用户给的是 `cloud_ip`，说明当前应该切到 `vmos-edge-control-api`。
 - 普通请求使用 `application/json`。
 - 文件上传使用 `multipart/form-data`。
 - 不要默认假设支持 `application/yaml`。

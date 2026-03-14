@@ -1,6 +1,6 @@
 # VMOS Edge Android Control Skill
 
-通过 VMOS Edge Android Control API 控制单台 Android 云机，默认走 HTTP。
+通过 VMOS Edge Android Control API 直接控制单台 Android 云机，输入应为云机 IP（`cloud_ip`）。
 
 ## 目录结构
 
@@ -28,8 +28,9 @@
 
 | 场景 | 地址 |
 | --- | --- |
-| 云机外 HTTP | `http://{宿主机IP}:18182/android_api/v2/{云机ID}` |
 | 云机内 HTTP | `http://{云机IP}:18185/api` |
+
+如果你手里只有宿主机 IP（`host_ip`），请先使用 `vmos-edge-container-api`。
 
 ## 安装
 

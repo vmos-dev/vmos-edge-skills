@@ -9,15 +9,13 @@
   - Android 13: `vcloud_android13_edge_20260110` 及以上
   - Android 15: `vcloud_android15_edge_20260110` 及以上
   - CBS: `1.1.1.10` 及以上
-- 优先使用云机外 HTTP：
-  - Base URL: `http://{{HOST_IP}}:18182/android_api/v2/{{CONTROL_DB_ID}}`
-- 如果用户额外提供云机局域网 IP，也可以直接走云机内 HTTP：
+- 这个 skill 的控制入口是云机 IP（`cloud_ip`），不是宿主机 IP（`host_ip`）。
+- 优先使用云机内 HTTP：
   - Base URL: `http://{{CONTROL_CLOUD_IP}}:18185/api`
 - 如果上面的连接变量还未替换，先尝试读取：
-  - `VMOS_EDGE_HOST_IP`
-  - `VMOS_EDGE_DB_ID`
-  - 可选 `VMOS_EDGE_CLOUD_IP`
-- 如果环境变量也没有，再先向用户询问宿主机 IP 和云机 ID。
+  - `VMOS_EDGE_CLOUD_IP`
+- 如果环境变量也没有，再先向用户询问 `cloud_ip` 或完整控制地址。
+- 如果用户给的是 `host_ip`，说明当前应该切到 `vmos-edge-container-api`，不要继续追问 `db_id`。
 - MCP 可选，只有当前客户端已经配置好 MCP 时才使用它。
 - 本仓库不提供 MCP 配置模板；如需 MCP 集成，统一参考官方文档。
 - MCP 接入要求 API 版本 `1.0.7+`。
@@ -32,19 +30,21 @@
 - GET 请求示例：
 
 ```bash
-/usr/bin/curl -s "http://{host_ip}:18182/android_api/v2/{db_id}/base/version_info"
+/usr/bin/curl -s "http://{cloud_ip}:18185/api/base/version_info"
 ```
 
 - POST 请求示例：
 
 ```bash
-/usr/bin/curl -s -X POST "http://{host_ip}:18182/android_api/v2/{db_id}/activity/start" \
+/usr/bin/curl -s -X POST "http://{cloud_ip}:18185/api/activity/start" \
   -H "Content-Type: application/json" \
   -d '{"package_name":"com.android.settings"}'
 ```
 
 - 只有在当前客户端已经暴露了 MCP 工具时，才改用 MCP。
 - 如果当前客户端把 HTTP 请求和 MCP 工具都支持，默认仍然优先 HTTP，这样 skill 不依赖额外配置。
+- `cloud_ip` 本身就足够执行 control API，不要额外要求 `db_id`。
+- 如果 `http://{cloud_ip}:18185/api/base/version_info` 连不上、超时，或直接返回 `5xx`，应明确说明当前云机没有暴露 Control API，不要回退去追问 `host_ip` 或 `db_id`。
 
 ## 核心工作流
 

@@ -12,15 +12,15 @@
 - `version_info`、`sleep`: 镜像版本 `20260113+`
 - 不要只凭 `version_name` 推断能力完整性；以 `supported_list` 与 `list_action` 为准
 - 当前 skill 约定把 `/accessibility/dump`、`/accessibility/find_and_operate`、`/accessibility/find_node` 视为过时接口，不纳入默认流程
+- 这个 skill 的控制入口是 `cloud_ip`
+- 如果你手里只有 `host_ip`，应先使用 `vmos-edge-container-api`
 
 ## 调用方式
 
-- 云机外 HTTP:
-  - `http://{host_ip}:18182/android_api/v2/{db_id}/{path}`
-  - 推荐作为默认执行路径
 - 云机内 HTTP:
   - `http://{cloud_ip}:18185/api/{path}`
-  - 仅在用户能提供云机 IP 时使用
+  - 推荐作为默认执行路径
+  - 如果 `GET /base/version_info` 连不上、超时，或直接返回 `5xx`，说明当前云机没有暴露 Control API
 - MCP:
   - 当前 skill 默认不依赖 MCP
   - 如需 MCP 接入，请直接参考官方文档，不在本地 reference 中重复维护配置细节
@@ -28,12 +28,12 @@
 ### HTTP 快速模板
 
 ```bash
-BASE_URL="http://${VMOS_EDGE_HOST_IP}:18182/android_api/v2/${VMOS_EDGE_DB_ID}"
+BASE_URL="http://${VMOS_EDGE_CLOUD_IP}:18185/api"
 curl -s "$BASE_URL/base/version_info"
 ```
 
 ```bash
-BASE_URL="http://${VMOS_EDGE_HOST_IP}:18182/android_api/v2/${VMOS_EDGE_DB_ID}"
+BASE_URL="http://${VMOS_EDGE_CLOUD_IP}:18185/api"
 curl -s -X POST "$BASE_URL/activity/start" \
   -H "Content-Type: application/json" \
   -d '{"package_name":"com.android.settings"}'

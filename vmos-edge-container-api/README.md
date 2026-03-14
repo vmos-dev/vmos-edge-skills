@@ -1,6 +1,6 @@
 # VMOS Edge Container Management Skill
 
-通过 VMOS Edge Container API 管理云手机实例。
+通过 VMOS Edge Container API 管理云手机实例，输入应为宿主机 IP（`host_ip`）。
 
 ## 目录结构
 
@@ -22,6 +22,8 @@
 ```text
 http://{宿主机IP}:18182
 ```
+
+如果你手里只有云机 IP（`cloud_ip`），请改用 `vmos-edge-control-api`。
 
 ## 安装
 
