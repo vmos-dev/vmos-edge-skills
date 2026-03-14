@@ -27,18 +27,18 @@
 ### OpenClaw 图片返回
 
 - OpenClaw 下不要把 `data:image/...;base64,...`、原始 base64、`Read image file [image/jpeg]` 这类文本直接当成最终发图结果
-- 正确做法是：
-  - 先把截图写到当前工作目录中的图片文件
-  - 优先使用相对路径，例如 `./artifacts/vmos-edge-screen-001.jpg`
-  - 回复一行简短说明，再单独输出一行 `MEDIA:./artifacts/vmos-edge-screen-001.jpg`
-- 不要使用 `MEDIA:/absolute/path.jpg` 或 `MEDIA:~/path.jpg`
-- 如果当前客户端支持结构化消息工具并且能直接附带图片，优先用工具的 `media/path/filePath`；`MEDIA:` 作为文本回退
+- `MEDIA:` 标记只在 **bash/exec 工具的 stdout** 里生效；在 LLM 文本回复中写 `MEDIA:xxx` 只是纯文本，不会渲染图片
+- 正确做法是在一条 bash/exec 命令里完成截图落盘和 `MEDIA:` 输出：
+  1. 用 `curl -o <路径> <截图接口URL>` 把图片保存到 workspace 目录内
+  2. 紧接着 `echo "MEDIA:<绝对路径>"` 输出到 stdout
+  3. OpenClaw 解析 exec 返回的 stdout，检测到 `MEDIA:` 标记后自动附加图片
+- 路径必须在 OpenClaw workspace 允许的根目录内（如 `/root/.openclaw/workspace/`）
+- 如果当前客户端支持结构化消息工具并且能直接附带图片，优先用工具原生能力
 
-示例：
+示例（通过 bash/exec 工具执行）：
 
-```text
-这是当前页面截图。
-MEDIA:./artifacts/vmos-edge-screen-001.jpg
+```bash
+curl -s -o /root/.openclaw/workspace/tmp/screen.jpg "http://{base_url}/screenshot/format" && echo "MEDIA:/root/.openclaw/workspace/tmp/screen.jpg"
 ```
 
 ### 导出紧凑层级
@@ -85,6 +85,6 @@ MEDIA:./artifacts/vmos-edge-screen-001.jpg
 3. 如果支持截图接口，优先走 `/screenshot/format` 或 `/screenshot/raw`；只有必要时再用 `/screenshot/data_url`
 4. 再用 `/accessibility/dump_compact` 或 `/accessibility/node`
 5. 优先用 `/accessibility/node` 做结构化节点定位 / 操作
-6. 要回图给用户时，先把截图落成相对路径文件，再按 OpenClaw 规则输出 `MEDIA:./relative/path`
+6. 要回图给用户时，通过 exec/bash 执行 `curl -o <workspace路径> <截图URL> && echo "MEDIA:<workspace路径>"`
 7. 结构化节点不够用时，再结合截图或 `dump_compact` 里的文本与 `bounds`，规划 `/input/click`、`/input/swipe`、`/input/text`
 8. 用当前设备支持的观察接口再次验证

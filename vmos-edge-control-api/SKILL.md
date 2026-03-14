@@ -41,8 +41,9 @@ description: Use this skill when controlling a VMOS Edge Android cloud phone thr
   - 需要看视觉布局、图标、颜色、弹窗遮挡、坐标点击位置时优先截图
   - 需要低成本获取文本、层级、bounds，或要衔接 `/accessibility/node` 时优先 `dump_compact`
   - 能同时用时，先截图理解界面，再用 `dump_compact` / `node` 做结构化定位
-  - 在 OpenClaw 或支持 `MEDIA:` 的环境里，要把截图发给用户时，先把图片写到当前工作目录的相对路径文件，再回复说明文字和 `MEDIA:./relative/path.jpg`
-  - 回图给用户时优先把 `screenshot/format` 或 `screenshot/raw` 落成文件；只有 `screenshot/data_url` 可用时，再解码成文件
+  - 截图回显给用户时，必须通过 bash/exec 工具完成：先 `curl -o` 把截图落盘，再 `echo "MEDIA:<绝对路径>"` 输出到 stdout；OpenClaw 只解析 exec stdout 里的 `MEDIA:` 标记，LLM 文本回复里写 `MEDIA:` 无效
+  - 路径必须在 OpenClaw workspace 允许的根目录内（如 `/root/.openclaw/workspace/`）
+  - 回图时优先把 `screenshot/format` 或 `screenshot/raw` 落成文件；只有 `screenshot/data_url` 可用时，再 base64 解码落盘
   - 不要把 `data:image/...;base64,...`、原始 base64、`Read image file [image/jpeg]` 这类文本当成最终发图结果
 - 不要把旧版无障碍导出 / 查找接口写进默认流程
 - 交互优先级：

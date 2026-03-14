@@ -25,7 +25,7 @@
 - 再用 `/base/list_action` 做能力发现
 - 先取轻量接口列表，需要某个接口详细用法时，再按 `paths` 带 `detail=true`
 - 只有在当前任务真的要调用某一类接口时，才打开对应模块文件
-- 要把截图回给用户时，读取 `references/observation.md` 里的图片返回约定；在 OpenClaw 中优先 `MEDIA:./relative/path`
+- 要把截图回给用户时，读取 `references/observation.md` 里的图片返回约定；OpenClaw 中 `MEDIA:` 必须从 exec/bash stdout 输出
 
 ## 连接规则
 
