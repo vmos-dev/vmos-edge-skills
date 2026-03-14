@@ -6,13 +6,15 @@ VMOS Edge 官方 skills 仓库，推荐直接通过 `npx skills add` 安装。
 
 | Skill | 用途 | 连接入口 | 协议 |
 | --- | --- | --- | --- |
-| `vmos-edge-control-api` | 控制单台 Android 云机 | `cloud_ip` | Android Control API（云机 IP 直连） |
+| `vmos-edge-control-api` | 控制单台 Android 云机 | `host_ip` 或 `cloud_ip` | Android Control API |
 | `vmos-edge-container-api` | 管理云手机容器实例 | `host_ip` | HTTP Container API（宿主机） |
 
-两个 skill 的连接入口不要混用：
+control skill 的连接入口要看当前是否同时安装了 container skill：
 
-- `vmos-edge-control-api` 直接接云机 IP（`cloud_ip`）
+- 只安装 `vmos-edge-control-api` 时，使用云机 IP（`cloud_ip`），并且云机必须开启局域网模式
+- 同时安装 `vmos-edge-container-api` 时，`vmos-edge-control-api` 优先使用宿主机 IP（`host_ip`）
 - `vmos-edge-container-api` 直接接宿主机 IP（`host_ip`）
+- 如果用户没有明确给 IP，且本地存在 `cbs_go` 进程，默认使用 `127.0.0.1`
 
 ## 安装
 

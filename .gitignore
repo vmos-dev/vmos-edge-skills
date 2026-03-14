@@ -1,0 +1,12 @@
+# Local agent instructions
+AGENTS.md
+.claude/CLAUDE.local.md
+
+# Local skill installation artifacts
+.agents/
+.claude/skills/
+skills/
+skills-lock.json
+
+# Local env/state files
+.DS_Store

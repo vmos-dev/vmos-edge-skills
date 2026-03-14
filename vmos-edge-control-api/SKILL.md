@@ -1,83 +1,66 @@
 ---
 name: vmos-edge-control-api
-description: Use this skill when controlling a VMOS Edge Android cloud phone through the Android Control API via the cloud machine IP (`cloud_ip`). Covers direct in-guest HTTP access, capability detection, hierarchy inspection, element interaction, typing, installs, and the Observe -> Plan -> Act -> Verify workflow. Do not use this skill for host_ip-based container routing.
+description: Use this skill when controlling a VMOS Edge Android cloud phone through the Android Control API. If the current session also has `vmos-edge-container-api`, use `host_ip` and resolve the target `db_id` through the container APIs first. If this skill is installed alone, prefer `cloud_ip`; if `host_ip` and `db_id` are already known, the host route can also be used. If no IP is provided and local `cbs_go` is running, default `host_ip` to `127.0.0.1`.
 ---
 
 # VMOS Edge Android Control
 
-在需要通过 VMOS Edge Android Control API 控制单台安卓云机时使用这个 skill。MCP 是可选加速通道，不是前置依赖。
+在需要通过 VMOS Edge Android Control API 控制单台安卓云机时使用这个 skill。MCP 是可选通道，不是前置依赖。
+
+## 连接入口
+
+- 如果用户已经明确给了 `host_ip` 或 `cloud_ip`，优先使用用户给的值
+- 如果用户没有明确给 IP，先检查本地是否存在 `cbs_go` 进程；存在则默认 `host_ip=127.0.0.1`
+- 如果用户没有明确给 IP，且本地没有 `cbs_go`，引导用户提供 `host_ip`、`cloud_ip`，或在已知宿主机场景下提供 `db_id`
+- 如果当前会话里同时安装了 `vmos-edge-container-api`：
+  - 使用宿主机路由 `http://{host_ip}:18182/android_api/v2/{db_id}`
+  - 必须先通过 container API 的 `POST /container_api/v1/get_db` 或 `GET /container_api/v1/get_android_detail/{db_id}` 拿到目标 `db_id`
+- 如果当前只有 `vmos-edge-control-api`：
+  - 默认优先使用云机直连 `http://{cloud_ip}:18185/api`
+  - 仅支持开启了局域网模式的云机
+- 如果当前只有 `vmos-edge-control-api`，而当前路径要走 `host_ip`：
+  - 如果用户已经给了 `db_id`，直接使用 `http://{host_ip}:18182/android_api/v2/{db_id}`
+  - 如果没有 `db_id`，明确说明还缺少 `db_id` 或 `vmos-edge-container-api`
+- 如果直连 `http://{cloud_ip}:18185/api/base/version_info` 连不上、超时，或返回 `5xx`，明确说明当前云机没有暴露 Control API，或没有开启局域网模式
 
 ## 核心流程
 
 - 始终遵循 `Observe -> Plan -> Act -> Verify`
-- 先探测当前设备实际暴露的能力，再决定观察和操作方式
-- 优先元素定位，最后才退回坐标
-- 每个关键动作后都重新获取当前设备支持的观察结果
-
-## 连接信息
-
-默认优先走云机内 HTTP：
-
-- Base URL: `http://{cloud_ip}:18185/api`
-
-拿连接信息时按这个顺序：
-
-1. 读取环境变量
-   - `VMOS_EDGE_CLOUD_IP`
-2. 读取当前提示词里已经替换好的值
-3. 如果还缺失，再向用户询问 `cloud_ip` 或完整控制地址
-4. 如果用户给的是 `host_ip`，说明这属于 `vmos-edge-container-api` 的入口，不要继续追问 `db_id`
-
-只有在客户端已经配好 MCP 时，才把 MCP 当成可选捷径。
-本仓库不提供 MCP 配置模板；如需 MCP 集成，统一参考官方文档。
-
-## 兼容性
-
-- Android 10: `vcloud_android10_edge_20260110` 及以上
-- Android 13: `vcloud_android13_edge_20260110` 及以上
-- Android 15: `vcloud_android15_edge_20260110` 及以上
-- CBS: `1.1.1.10` 及以上
-- 云机内 HTTP 不依赖 MCP
-- MCP 可选，要求 API `1.0.7+`
-- `version_info`、`sleep` 属于增强能力，需要镜像 `20260113+`
-
-## 传输方式优先级
-
-1. 云机内 HTTP
-   - `http://{cloud_ip}:18185/api/{path}`
-2. MCP
-   - 仅当当前客户端已配置好时使用
-3. WebSocket / `ve`
-   - 仅在用户明确偏好这些方式时使用
-
-## 默认策略
-
-- 能直接发 HTTP 请求时，优先 `/usr/bin/curl`、`fetch`、Python `requests` 之类的方式调用 API
-- 如果 shell 里 `curl` 不在 PATH，不要卡住，直接改用 `/usr/bin/curl` 或 Python
-- `cloud_ip` 本身就足够发起控制请求，不要再额外要求 `db_id`
-- 如果用户给的是 `host_ip`，应切到 `vmos-edge-container-api`，不要把 `host_ip` 当成 `cloud_ip`
-- 第一次连接时，优先请求 `/base/version_info`
-- 如果 `http://{cloud_ip}:18185/api/base/version_info` 连不上、超时，或直接返回 `5xx`，应明确说明当前云机没有暴露 Control API，不要回退去追问 `host_ip` 或 `db_id`
-- 然后请求 `/base/list_action`，不要只凭版本号假设能力完整
-- 当前项目内约定把 `/accessibility/dump`、`/accessibility/find_and_operate`、`/accessibility/find_node` 视为过时接口，不纳入默认流程
+- 第一次连接先查 `/base/version_info`
+- `/base/version_info` 能成功返回，就视为当前环境支持 Control API；拿不到返回再说明当前环境不支持或没有暴露接口
+- 本地检查 `cbs_go` 时，优先用精确匹配，例如 `pgrep -x cbs_go >/dev/null 2>&1`
+- 再用 `/base/list_action` 做能力发现：
+  - 需要低成本查看当前设备支持哪些接口时，先取接口列表
+  - 需要某个接口的详细用法时，再按 `paths` 定向查询并带上 `detail`
 - 观察优先级：
-  - 如果支持 `screenshot/format`、`screenshot/raw` 或 `screenshot/data_url` 这类截图接口，优先截图
-  - 否则优先 `/accessibility/dump_compact`
-  - 如果两者都没有，再组合 `/display/info`、`/activity/top_activity`、`/package/list`
-- 坐标动作前先看 `/display/info`
+  - 截图接口 `screenshot/format`、`screenshot/raw`、`screenshot/data_url`
+  - `/accessibility/dump_compact`
+  - `/accessibility/node` 的无动作查询
+  - `/display/info`、`/activity/top_activity`、`/package/list`
+- 观察策略：
+  - 需要看视觉布局、图标、颜色、弹窗遮挡、坐标点击位置时优先截图
+  - 需要低成本获取文本、层级、bounds，或要衔接 `/accessibility/node` 时优先 `dump_compact`
+  - 能同时用时，先截图理解界面，再用 `dump_compact` / `node` 做结构化定位
+  - 在 OpenClaw 或支持 `MEDIA:` 的环境里，要把截图发给用户时，先把图片写到当前工作目录的相对路径文件，再回复说明文字和 `MEDIA:./relative/path.jpg`
+  - 回图给用户时优先把 `screenshot/format` 或 `screenshot/raw` 落成文件；只有 `screenshot/data_url` 可用时，再解码成文件
+  - 不要把 `data:image/...;base64,...`、原始 base64、`Read image file [image/jpeg]` 这类文本当成最终发图结果
+- 不要把旧版无障碍导出 / 查找接口写进默认流程
 - 交互优先级：
-  - 默认根据截图或 `dump_compact` 里的文本、`bounds`、层级顺序规划点击和滑动
-  - 点击、滑动优先 `/input/click`、`/input/swipe`、`/input/scroll_bezier`
-  - 只有当前设备暴露了更新的高层 UI 操作能力时，才按 `supported_list` / `list_action` 使用
-- 输入优先 `/input/text`
-- 启动应用优先 `/activity/start`
-- 安装优先 `/package/install_sync` 或 `/package/install_uri_sync`
-- 连续动作按 `Observe -> Plan -> Act -> Verify` 逐步执行，不使用聚合式批量动作
+  - 先根据截图、`dump_compact` 或 `/accessibility/node` 规划动作
+  - 结构化节点定位 / 操作优先 `/accessibility/node`
+  - 点击 / 滑动优先 `/input/click`、`/input/swipe`、`/input/scroll_bezier`
+  - 输入优先 `/input/text`
+  - 启动应用优先 `/activity/start`；需要首启授权时优先 `/activity/launch_app`
+  - 安装优先 `/package/install_sync` 或 `/package/install_uri_sync`
+  - 读取或修改 Settings 优先 `/system/settings_get`、`/system/settings_put`
+- 每个关键动作后重新观察，不要做聚合式批量动作
 - 没有专用接口时才考虑 `/system/shell`
 
 ## 必读参考
 
-- 需要精确路径、参数名、示例请求时，必须读取 `references/api-reference.md`
+- 先看 `references/api-reference.md` 里的索引，再按模块只打开需要的 reference 文件
+- 优先先用 `/base/list_action` 按需确认能力，再决定要不要展开更多接口细节
+- 只有在需要精确路径、字段、示例请求时，才读取对应模块 reference
 
 ## 安全边界
 
