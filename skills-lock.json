@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "vmos-edge-control-api": {
+      "source": "/Users/xiaosuan/workspace/vmosedge-projects/vmos-edge-skills",
+      "sourceType": "local",
+      "computedHash": "92d18c904e937bfcbba490b64a825b02b37282bd526db7d8876abe5961a22bf1"
+    }
+  }
+}
