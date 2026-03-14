@@ -21,14 +21,15 @@
 - 再用 `/base/list_action` 做能力发现：先取轻量接口列表，需要详细用法时再按 `paths` 带 `detail` 查询
 - 观察优先级：截图接口 > `/accessibility/dump_compact` > `/accessibility/node`（只查找） > `/display/info`、`/activity/top_activity`、`/package/list`
 - 观察策略：看视觉布局 / 图标 / 颜色 / 遮挡 / 坐标时优先截图；看文本 / 层级 / bounds 或要衔接 `/accessibility/node` 时优先 `dump_compact`
-- 截图回显给用户时，必须通过 bash/exec 工具完成：先 `curl -o` 把截图落盘，再 `echo "MEDIA:<绝对路径>"` 输出到 stdout；OpenClaw 只解析 exec stdout 里的 `MEDIA:` 标记，LLM 文本回复里写 `MEDIA:` 无效
-- 路径必须在 OpenClaw workspace 允许的根目录内（如 `/root/.openclaw/workspace/`）
+- 截图回显给用户时：先用 bash/exec 的 `curl -o` 把截图落盘到 workspace 目录，再用 read 工具读取该文件让模型看到图片内容
 - 回图时优先 `screenshot/format` 或 `screenshot/raw` 落盘；只有 `screenshot/data_url` 可用时，再 base64 解码落盘
-- 不要把 `data_url`、原始 base64、`Read image file [image/jpeg]` 这类文本直接当成最终发图结果
+- 不要在文本回复里写 `MEDIA:` 或直接贴 base64 / data_url —— 这些不会渲染为图片
+- 如果需要把图片转发到消息渠道（Telegram 等），使用 `message --media <路径>` 工具发送
 - 不要把旧版无障碍导出 / 查找接口写进默认流程
 - 结构化节点定位 / 操作优先 `/accessibility/node`
 - 交互优先 `/input/click`、`/input/swipe`、`/input/scroll_bezier`、`/input/text`
 - 启动应用优先 `/activity/start`；需要首启授权时优先 `/activity/launch_app`
+- 浏览器 / 网页场景优先 `/activity/start_activity` 打开指定浏览器；浏览器包名优先 `mark.via`，没有再用 `com.android.chrome`
 - 安装优先 `/package/install_sync` 或 `/package/install_uri_sync`
 - 读取或修改 Settings 优先 `/system/settings_get`、`/system/settings_put`
 - 每个关键动作后重新观察；没有专用接口时才考虑 `/system/shell`
@@ -41,3 +42,5 @@
 - 先看 `references/api-reference.md` 的索引，再按模块打开需要的 reference 文件
 - 优先先用 `/base/list_action` 按需确认能力
 - 需要精确路径、字段、示例请求时，再读对应模块 reference
+- 如果任务是安装、下载并打开某个第三方应用，再读 `references/app-installation.md`
+- 如果任务是在云机浏览器里搜索、打开网页、提取网页内容，再读 `references/browser-search-and-reading.md`

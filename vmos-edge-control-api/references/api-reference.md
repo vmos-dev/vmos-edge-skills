@@ -10,6 +10,10 @@
   - `references/ui-node.md`
 - 启动应用、安装、卸载、应用列表：
   - `references/activity-and-package.md`
+- 安装第三方应用的场景流程：
+  - `references/app-installation.md`
+- 设备内浏览器搜索、打开网页、提取页面内容：
+  - `references/browser-search-and-reading.md`
 - 点击、滑动、输入、按键：
   - `references/input-control.md`
 - 截图、屏幕信息、`dump_compact`：
@@ -25,7 +29,7 @@
 - 再用 `/base/list_action` 做能力发现
 - 先取轻量接口列表，需要某个接口详细用法时，再按 `paths` 带 `detail=true`
 - 只有在当前任务真的要调用某一类接口时，才打开对应模块文件
-- 要把截图回给用户时，读取 `references/observation.md` 里的图片返回约定；OpenClaw 中 `MEDIA:` 必须从 exec/bash stdout 输出
+- 要把截图回给用户时，读取 `references/observation.md` 里的截图回显约定
 
 ## 连接规则
 

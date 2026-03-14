@@ -25,6 +25,10 @@
   - `action`
   - `data`
   - `extras`
+- 浏览器 / 网页场景建议：
+  - 浏览器包名优先 `mark.via`
+  - 没有 `mark.via` 时再尝试 `com.android.chrome`
+  - URL 打开常见组合是 `action=android.intent.action.VIEW` + `data=<url>`
 
 ### 停止应用
 
@@ -75,3 +79,11 @@
 2. `/package/list`
 3. 首启授权场景优先 `/activity/launch_app`，否则 `/activity/start`
 4. 用 `/activity/top_activity`、`/package/list` 或当前可用的观察接口验证
+
+### 下载第三方应用再安装
+
+- 如果用户只给了应用名，没有直接给 APK 文件或下载链接，先读取 `references/app-installation.md`
+
+### 浏览器搜索与网页阅读
+
+- 如果任务是在云机浏览器中搜索、打开网页、提取页面文本，先读取 `references/browser-search-and-reading.md`

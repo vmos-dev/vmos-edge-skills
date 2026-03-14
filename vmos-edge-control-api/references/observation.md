@@ -24,22 +24,22 @@
   - 需要做坐标点击、滑动起止点、拖拽路径规划
   - 需要验证页面是否真的渲染出来，而不只是节点树里“存在”
 
-### OpenClaw 图片返回
+### 截图回显
 
-- OpenClaw 下不要把 `data:image/...;base64,...`、原始 base64、`Read image file [image/jpeg]` 这类文本直接当成最终发图结果
-- `MEDIA:` 标记只在 **bash/exec 工具的 stdout** 里生效；在 LLM 文本回复中写 `MEDIA:xxx` 只是纯文本，不会渲染图片
-- 正确做法是在一条 bash/exec 命令里完成截图落盘和 `MEDIA:` 输出：
-  1. 用 `curl -o <路径> <截图接口URL>` 把图片保存到 workspace 目录内
-  2. 紧接着 `echo "MEDIA:<绝对路径>"` 输出到 stdout
-  3. OpenClaw 解析 exec 返回的 stdout，检测到 `MEDIA:` 标记后自动附加图片
-- 路径必须在 OpenClaw workspace 允许的根目录内（如 `/root/.openclaw/workspace/`）
-- 如果当前客户端支持结构化消息工具并且能直接附带图片，优先用工具原生能力
+- 不要在文本回复里写 `MEDIA:`、`data:image/...;base64,...`、原始 base64 —— 这些不会渲染为图片
+- 正确做法：
+  1. 用 bash/exec 的 `curl -o` 把截图保存到 workspace 目录（如 `~/.openclaw/workspace/tmp/screen.jpg`）
+  2. 用 read 工具读取该文件，模型即可看到图片内容并做视觉分析
+  3. 如果需要把图片转发到消息渠道（Telegram / WhatsApp 等），使用 `message --media <路径>` 发送
+- OpenClaw Control UI 目前不支持内联图片渲染（[#24021](https://github.com/openclaw/openclaw/issues/24021)）；需要用户看到图片时，走消息渠道或提供文件路径
 
 示例（通过 bash/exec 工具执行）：
 
 ```bash
-curl -s -o /root/.openclaw/workspace/tmp/screen.jpg "http://{base_url}/screenshot/format" && echo "MEDIA:/root/.openclaw/workspace/tmp/screen.jpg"
+curl -s -o ~/.openclaw/workspace/tmp/screen.jpg "http://{base_url}/screenshot/format"
 ```
+
+然后用 read 工具读取 `~/.openclaw/workspace/tmp/screen.jpg`，模型即可分析截图内容。
 
 ### 导出紧凑层级
 
@@ -85,6 +85,6 @@ curl -s -o /root/.openclaw/workspace/tmp/screen.jpg "http://{base_url}/screensho
 3. 如果支持截图接口，优先走 `/screenshot/format` 或 `/screenshot/raw`；只有必要时再用 `/screenshot/data_url`
 4. 再用 `/accessibility/dump_compact` 或 `/accessibility/node`
 5. 优先用 `/accessibility/node` 做结构化节点定位 / 操作
-6. 要回图给用户时，通过 exec/bash 执行 `curl -o <workspace路径> <截图URL> && echo "MEDIA:<workspace路径>"`
+6. 要回图给用户时，先 `curl -o` 落盘到 workspace，再用 read 工具读取让模型分析；需要转发到消息渠道时用 `message --media`
 7. 结构化节点不够用时，再结合截图或 `dump_compact` 里的文本与 `bounds`，规划 `/input/click`、`/input/swipe`、`/input/text`
 8. 用当前设备支持的观察接口再次验证
