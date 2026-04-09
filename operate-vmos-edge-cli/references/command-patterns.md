@@ -9,13 +9,10 @@
 | **CLI** | `vmos-edge-cli device list --host <ip>` | `vmos-edge-cli batch '<json>'` | `vmos-edge-cli run <file.yaml>` |
 | **Action notation** | spaces: `device list` | dots: `device.list` | dots: `device.list` |
 | **Params** | CLI flags: `--host <ip>` | JSON: `"args":{"host":"..."}` | YAML: `args: { host: "..." }` |
-| **Param naming** | kebab-case: `--device-type` | snake_case: `device_type` | snake_case: `device_type` |
 | **Variables** | — | `$name.path` | `${{ name.field }}` |
 | **When** | Single action, or needs result inspection | Consecutive actions safe to run unconditionally | Reusable flow |
 
 **The key rule:** If every step is safe to run regardless of previous steps' results → batch. If you need to inspect a result before deciding the next step → direct.
-
-**Param name conversion:** CLI flags use `--kebab-case`; batch/YAML args use `snake_case`. Drop the `--` prefix and replace `-` with `_`: `--device-type` → `device_type`, `--adi-name` → `adi_name`, `-o`/`--output` → `output`. When unsure, run `vmos-edge-cli schema` — it lists every action with exact param names and types.
 
 ```bash
 # ❌ 3 separate invocations
@@ -33,27 +30,59 @@ vmos-edge-cli batch '[
 
 ## Preflight
 
-See [invocation-preflight.md](invocation-preflight.md) for the full install-and-verify flow.
+**Follow the Preflight gate in SKILL.md before running any command.** Install: `npm i -g @vmosedge/cli`.
 
-Set `app.bin-path` before `app start`:
-
-| Platform | Default path |
-|----------|-------------|
-| macOS | `/Applications/VMOS Edge 2.0.app` (auto-resolves to binary) |
-| Windows | `C:\Program Files\VMOS Edge 2.0\VMOS Edge 2.0.exe` |
-| Linux | `/opt/vmos-edge/vmos-edge` |
+Set `app.bin-path` before `app start` if the desktop app is not at the default location:
 
 ```bash
 vmos-edge-cli config set app.bin-path "<path>"
 ```
 
-Use `config show` to confirm. It returns merged `config` and raw `file` — a difference means a structural issue.
+See [invocation-preflight.md](invocation-preflight.md) for platform default paths and edge cases. Use `config show` to confirm — it returns merged `config` and raw `file`; a difference means a structural issue.
 
 ## Conventions
 
 - All output uses a JSON envelope: `{"ok": true, "data": ...}` or `{"ok": false, "error": "...", "code": "..."}`.
 - Explicit output paths for screenshots and reports.
 - Use `schema` to see all actions and params. Only `sleep` is batch/run-only; all other actions have direct commands.
+
+## Param Mapping
+
+Three types of params exist across modes. All batch/YAML params use `snake_case`.
+
+### Flags
+
+Drop `--`, replace `-` with `_`:
+
+| CLI flag | batch/YAML arg |
+|----------|---------------|
+| `--device-type` | `device_type` |
+| `--adi-name` | `adi_name` |
+| `-o` / `--output` | `output` |
+| `--host` | `host` |
+
+### Positional args
+
+CLI positional args (`<id>`, `<ids...>`, `<ip>`) become named args in batch/YAML. **The names are not derivable from CLI syntax** — you must run `schema <domain>` to find them.
+
+| CLI | batch/YAML |
+|-----|-----------|
+| `device start --host <ip> <ids...>` | `{"action":"device.start","args":{"host":"...","id":"..."}}` |
+| `device info --host <ip> <id>` | `{"action":"device.info","args":{"host":"...","id":"..."}}` |
+| `host info <ip>` | `{"action":"host.info","args":{"ip":"..."}}` |
+| `device screenshot --host <ip> <id> -o f.png` | `{"action":"device.screenshot","args":{"host":"...","id":"...","output":"f.png"}}` |
+
+The table shows the most common single-target form. For multi-target behavior (arrays, etc.), always run `schema <domain>` — it is the single source of truth.
+
+### When unsure
+
+```bash
+vmos-edge-cli schema device    # show all device.* actions with param names and types
+vmos-edge-cli schema ui        # show all ui.* actions
+vmos-edge-cli schema           # show everything
+```
+
+`schema` is the single source of truth. Always run it before writing batch JSON or YAML playbooks.
 
 ## Direct Commands
 
@@ -67,8 +96,8 @@ vmos-edge-cli app start
 vmos-edge-cli app stop
 vmos-edge-cli app wait-ready [-t <ms>]
 vmos-edge-cli device list --host <ip>
-vmos-edge-cli device create --host <ip> --image <repo> --name <name> --count 3
-vmos-edge-cli device create --host <ip> --image <repo> --name <name> --device-type real --adi-name <template> --start
+vmos-edge-cli device create --host <ip> --image <image> --name <name> --count 3
+vmos-edge-cli device create --host <ip> --image <image> --name <name> --device-type real --adi-name <template> --start
 vmos-edge-cli device info --host <ip> <id>
 vmos-edge-cli device start --host <ip> <ids...>
 vmos-edge-cli device stop --host <ip> <ids...>
@@ -141,10 +170,22 @@ vmos-edge-cli run flow.yaml --dry-run
 vmos-edge-cli run flow.yaml --report html
 ```
 
-YAML structure: `setup`, `steps`, `teardown`. Variable syntax: `${{ name.field }}` or `${{ steps[N].field }}`. **Not interchangeable with batch `$` syntax.**
+### Structure
+
+A playbook has three sections: `setup`, `steps`, `teardown`. All are optional.
+
+| Section | Runs | On failure |
+|---------|------|-----------|
+| `setup` | First, before steps | Playbook aborts, teardown still runs |
+| `steps` | Sequentially, in order | Playbook stops at the failed step, teardown still runs |
+| `teardown` | Last, always | **Always runs**, even if setup or steps failed |
+
+Variable syntax: `${{ name.field }}` or `${{ steps[N].field }}`. **Not interchangeable with batch `$` syntax.**
+
+### Example
 
 ```yaml
-name: Open proxy page
+name: Start device and screenshot
 setup:
   - action: app.wait-ready
     args: { timeout: 30000 }
@@ -154,9 +195,16 @@ steps:
     save: devices
   - action: device.start
     args: { host: "10.0.0.5", id: ${{ devices[0].id }} }
+  - action: sleep
+    args: { seconds: 10 }
+  - action: device.screenshot
+    args: { host: "10.0.0.5", id: ${{ devices[0].id }}, output: "shot.png" }
+teardown:
+  - action: device.stop
+    args: { host: "10.0.0.5", id: ${{ devices[0].id }} }
 ```
 
-Read `YAML.md` at the repository root for the full action catalog and report structure.
+All actions listed in the Direct Commands section are available in YAML with dot notation (e.g. `device.list`). Param names use `snake_case` — see Param Mapping section above. Report output supports `text`, `json`, and `html` formats via `--report`.
 
 ## Batch/Run-Only Actions
 

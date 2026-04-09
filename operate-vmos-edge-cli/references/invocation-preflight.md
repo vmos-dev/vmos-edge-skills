@@ -1,78 +1,39 @@
 # Invocation Preflight
 
-## Goal
+The standard check-and-install flow is in the **Preflight** section of SKILL.md. This file covers the automated helper script, platform-specific paths, and edge cases.
 
-Get to an installed, callable `vmos-edge-cli` command.
+## Automated Helper Script
 
-Treat npm installation as the supported entry path. Do not substitute `node dist/main.js`, `pnpm build`, or `pnpm link` as the normal way to use the CLI.
-
-## Preferred Tool
-
-Use `scripts/ensure-installed.mjs` from this skill directory when installation status is unknown or when you want the check-and-install flow to stay deterministic across macOS, Windows, and Linux.
-
-From the repository root:
+Use `scripts/ensure-installed.mjs` for a deterministic check-install-verify flow across macOS, Windows, and Linux:
 
 ```bash
-node skills/operate-vmos-edge-cli/scripts/ensure-installed.mjs
+node scripts/ensure-installed.mjs
 ```
 
-If the CLI should be installed from a published npm package instead of the current repository:
+The script performs: Node.js version check → CLI detection → `npm i -g @vmosedge/cli` if missing → `schema` verification. Exit 0 = ready, non-zero = failed (read stderr).
+
+## Platform Paths
+
+Set `app.bin-path` before `app start` if the desktop app is not at the default location:
+
+| Platform | Default path |
+|----------|-------------|
+| macOS | `/Applications/VMOS Edge 2.0.app` (auto-resolves to binary) |
+| Windows | `C:\Program Files\VMOS Edge 2.0\VMOS Edge 2.0.exe` |
+| Linux | `/opt/vmos-edge/vmos-edge` |
 
 ```bash
-node skills/operate-vmos-edge-cli/scripts/ensure-installed.mjs <package-name>
+vmos-edge-cli config set app.bin-path "<path>"
 ```
 
-## Minimal Manual Flow
+## Edge Cases
 
-Check runtime prerequisites first:
-
-```bash
-node --version
-npm --version
-```
-
-If either command is missing or broken, stop and tell the user that Node.js 18+ with npm is required first.
-
-Then check the CLI:
-
-```bash
-vmos-edge-cli --version
-```
-
-If `vmos-edge-cli` is missing, install it with npm:
-
-```bash
-npm install -g .
-```
-
-If the user provides a published npm package name, install that package instead:
-
-```bash
-npm install -g <package-name>
-```
-
-Verify the installed CLI after installation:
-
-```bash
-vmos-edge-cli --version
-vmos-edge-cli schema
-```
-
-## Agent Policy
-
-- Detect `node` and `npm` first.
-- Detect `vmos-edge-cli` next. Install only when the command is missing.
-- Prefer `scripts/ensure-installed.mjs` over rewriting the check-and-install sequence inline.
-- Report whether the CLI was already present or had to be installed.
-- If Node.js or npm is missing, surface that prerequisite failure clearly and stop.
-- If installation fails, surface the npm error and stop instead of improvising a repo-local fallback.
-- If the task environment forbids global installation, ask the user how they want the CLI made available.
+- **Global install forbidden** — ask the user how they want the CLI made available (npx, local node_modules, etc.).
+- **CLI installed but unhealthy** (`--version` exits non-zero) — report the error detail. Do not reinstall automatically.
+- **Multiple Node versions** (nvm/fnm) — confirm the active version is 18+ before proceeding.
 
 ## Do Not
 
-- Do not try to run the Node helper when `node` itself is unavailable.
-- Do not try npm-based CLI installation when `npm` is unavailable.
-- Do not assume the CLI is globally installed.
-- Do not switch to `node dist/main.js` as a fallback.
-- Do not use `pnpm build` or `pnpm link` as a substitute for installation.
-- Do not hide bootstrap changes from the user; report whether you used an existing installation or a new npm installation.
+- Do not substitute `node dist/main.js` as a fallback.
+- Do not use `pnpm build` or `pnpm link` as a substitute for `npm i -g @vmosedge/cli`.
+- Do not hide bootstrap changes from the user; report whether CLI was already present or newly installed.

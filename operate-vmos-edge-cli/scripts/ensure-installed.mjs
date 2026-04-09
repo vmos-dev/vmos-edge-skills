@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 
-const target = process.argv[2] ?? '.'
+const target = process.argv[2] ?? '@vmosedge/cli'
 const cliCommand = process.platform === 'win32' ? 'vmos-edge-cli.cmd' : 'vmos-edge-cli'
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10)
