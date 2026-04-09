@@ -4,10 +4,11 @@ VMOS Edge 官方 skills 仓库，推荐直接通过 `npx skills add` 安装。
 
 ## Skills
 
-| Skill | 用途 | 连接入口 | 协议 |
-| --- | --- | --- | --- |
-| `vmos-edge-control-api` | 控制单台 Android 云机 | `host_ip` 或 `cloud_ip` | Android Control API |
-| `vmos-edge-container-api` | 管理云手机容器实例 | `host_ip` | HTTP Container API（宿主机） |
+| Skill                     | 用途                                           | 连接入口                | 协议                         |
+| ------------------------- | ---------------------------------------------- | ----------------------- | ---------------------------- |
+| `vmos-edge-control-api`   | 控制单台 Android 云机                          | `host_ip` 或 `cloud_ip` | Android Control API          |
+| `vmos-edge-container-api` | 管理云手机容器实例                             | `host_ip`               | HTTP Container API（宿主机） |
+| `workflow-skill-creator`  | 录制 Android UI 自动化工作流并编译为可重放脚本 | `cloud_ip`              | Android Control API + CLI    |
 
 control skill 的连接入口要看当前是否同时安装了 container skill：
 
@@ -34,6 +35,12 @@ npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill vmos-edge-co
 
 ```bash
 npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill vmos-edge-container-api
+```
+
+安装 workflow skill creator：
+
+```bash
+npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill workflow-skill-creator
 ```
 
 `skills` CLI 会把这个仓库分发给 Codex、Cursor、Claude Code、Gemini CLI、GitHub Copilot、OpenClaw 等兼容 agent。
