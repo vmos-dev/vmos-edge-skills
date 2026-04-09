@@ -1,0 +1,4 @@
+interface:
+  display_name: "Operate VMOS Edge CLI"
+  short_description: "Install and operate VMOS Edge CLI"
+  default_prompt: "Use $operate-vmos-edge-cli to verify prerequisites, install the CLI if needed, and complete this VMOS Edge task with the fewest reliable commands."
