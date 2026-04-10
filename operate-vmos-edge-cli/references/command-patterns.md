@@ -48,7 +48,7 @@ See [invocation-preflight.md](invocation-preflight.md) for platform default path
 
 ## Param Mapping
 
-Four types of params exist across modes. All batch/YAML params use `snake_case`.
+Four types of params exist across modes. Device/host/image params use `snake_case`; UI params use `camelCase`. Run `schema` to confirm exact names.
 
 ### Flags
 
@@ -133,7 +133,7 @@ vmos-edge-cli image list --host <ip>
 See [ui-automation.md](ui-automation.md) for element selection and action details.
 
 ```bash
-vmos-edge-cli ui state
+vmos-edge-cli ui state [--interactive-only]
 vmos-edge-cli ui screenshot -o ui.png
 vmos-edge-cli ui click <target>
 vmos-edge-cli ui type <target> <text>
@@ -216,7 +216,7 @@ teardown:
     args: { host: "10.0.0.5", id: ${{ devices[0].id }} }
 ```
 
-All actions listed in the Direct Commands section are available in YAML with dot notation (e.g. `device.list`). Param names use `snake_case` — see Param Mapping section above. Report output supports `text`, `json`, and `html` formats via `--report`.
+All actions listed in the Direct Commands section are available in YAML with dot notation (e.g. `device.list`). Param naming varies by domain — see Param Mapping section above. Report output supports `text`, `json`, and `html` formats via `--report`.
 
 ## Batch/Run-Only Actions
 

@@ -17,7 +17,7 @@ ui state → read output → pick index → action → ui state → next
 1. **Run `ui state`** to get the element tree. Each interactive element is marked `[N]` (starting from 1). On complex pages with too many elements, filter non-interactive elements:
    - CLI: `vmos-edge-cli ui state --interactive-only`
    - batch: `{"action":"ui.state","args":{"interactiveOnly":true}}`
-   - YAML: `action: ui.state` / `args: { interactive_only: true }`
+   - YAML: `action: ui.state` / `args: { interactiveOnly: true }`
 2. **Read the output.** New or changed elements since the last snapshot are marked with `*` prefix — focus on those first. The footer shows `interactiveCount` and a `hidden_interactive` section listing off-screen elements with distance and direction.
 3. **Pick the numeric index** of the target element.
 4. **Execute the action** with that index.
