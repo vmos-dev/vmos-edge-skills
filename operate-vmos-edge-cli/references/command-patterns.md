@@ -48,7 +48,7 @@ See [invocation-preflight.md](invocation-preflight.md) for platform default path
 
 ## Param Mapping
 
-Three types of params exist across modes. All batch/YAML params use `snake_case`.
+Four types of params exist across modes. All batch/YAML params use `snake_case`.
 
 ### Flags
 
@@ -67,12 +67,24 @@ CLI positional args (`<id>`, `<ids...>`, `<ip>`) become named args in batch/YAML
 
 | CLI | batch/YAML |
 |-----|-----------|
-| `device start --host <ip> <ids...>` | `{"action":"device.start","args":{"host":"...","id":"..."}}` |
+| `device start --host <ip> <ids...>` | `{"action":"device.start","args":{"host":"...","id":["..."]}}` |
 | `device info --host <ip> <id>` | `{"action":"device.info","args":{"host":"...","id":"..."}}` |
 | `host info <ip>` | `{"action":"host.info","args":{"ip":"..."}}` |
 | `device screenshot --host <ip> <id> -o f.png` | `{"action":"device.screenshot","args":{"host":"...","id":"...","output":"f.png"}}` |
 
-The table shows the most common single-target form. For multi-target behavior (arrays, etc.), always run `schema <domain>` — it is the single source of truth.
+### Array params
+
+Schema type `string[]` or `string|string[]` means the param accepts multiple values. The framework normalizes all input forms to a proper array before the handler sees it.
+
+| Mode | How to pass | Example |
+|------|------------|---------|
+| CLI (variadic) | space-separated | `--hosts 10.0.0.1 10.0.0.2` |
+| CLI | comma-separated | `--hosts 10.0.0.1,10.0.0.2` |
+| CLI | mixed | `--hosts 10.0.0.1 10.0.0.2,10.0.0.3` |
+| batch/YAML | JSON array | `"hosts": ["10.0.0.1", "10.0.0.2"]` |
+| batch/YAML | comma string | `"hosts": "10.0.0.1,10.0.0.2"` |
+
+All five forms produce the same `["10.0.0.1", "10.0.0.2"]` (or three elements for mixed). Run `schema` to see which params are `string[]`.
 
 ### When unsure
 
@@ -112,7 +124,7 @@ vmos-edge-cli host info <ip>
 vmos-edge-cli host hardware <ip>
 vmos-edge-cli host network <ip>
 vmos-edge-cli host templates <ip>
-vmos-edge-cli host list --hosts <ip,ip,...>
+vmos-edge-cli host list --hosts <ip...>
 vmos-edge-cli image list --host <ip>
 ```
 
