@@ -84,6 +84,7 @@ Terminal uses spaces. YAML and batch use dots. Variable syntax is not interchang
 
 Use the Read tool on these files when the condition applies — do not work from memory.
 
+- [references/page-map.md](references/page-map.md) — **read first** when navigating the desktop UI: page routes, hidden features, how to reveal menus/panels/dialogs
 - [references/command-patterns.md](references/command-patterns.md) — three invocation modes (direct / batch / run), full command reference
 - [references/ui-automation.md](references/ui-automation.md) — element selection, action list, cost guide
 - [references/error-recovery.md](references/error-recovery.md) — error codes and deterministic recovery
