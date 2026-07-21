@@ -61,9 +61,3 @@ curl http://{宿主机IP}:47218/health
 
 看返回里的 `version`。版本更低时,本文写的一部分行为(尤其数值字段里的 `${}`)可能还没有,
 真机跑一条最小用例验证比猜快。
-
-## 不适用
-
-- 普通 YAML 配置(CI 流水线、Kubernetes 清单、docker-compose、OpenAPI)跟这套语法无关
-- `com.vmos.vmosauto` 引擎的 JSON 节点图脚本不归它管
-- 纯粹的云机管理 / 设备操作请用 `operate-vmos-edge-cli` 或 `vmos-edge-container-api`

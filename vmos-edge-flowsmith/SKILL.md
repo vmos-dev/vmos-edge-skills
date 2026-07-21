@@ -5,10 +5,8 @@ description: >-
   `- swipe:` / `- repeat:` 命令数组"这种格式。覆盖:把一个 App 的一串操作自动化、照着界面结构产出脚本、
   养号 / 批量私信 / 批量注册这类长跑脚本,以及脚本"报成功却没干活""点不中""分支不进""循环停不下来"
   的排障。用户提到 VMOS Edge 脚本 / flow / 自动化 / 养号,或贴出这种 YAML 时都要用,
-  哪怕没说"YAML"二字。
-  **不适用**:普通 YAML 配置(CI 流水线、Kubernetes 清单、docker-compose、OpenAPI)跟这套语法无关;
-  另外两类同域任务也不归它 —— `com.vmos.vmosauto` 引擎的 JSON 节点图脚本、以及纯粹的云机管理 /
-  设备操作。本 skill 只管"`appId` + `---` + 命令数组"这一种 YAML flow。
+  哪怕没说"YAML"二字。只管"`appId` + `---` + 命令数组"这一种 flow —— 别的格式的自动化脚本、
+  以及单纯的设备管理,都不是它的事。
 ---
 
 # 写 VMOS Edge YAML Flow 脚本
