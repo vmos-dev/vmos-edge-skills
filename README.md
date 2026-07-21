@@ -10,6 +10,7 @@ VMOS Edge 官方 skills 仓库，推荐直接通过 `npx skills add` 安装。
 | `vmos-edge-container-api` | 管理云手机容器实例                             | `host_ip`               | HTTP Container API（宿主机） |
 | `workflow-skill-creator`  | 录制 Android UI 自动化工作流并编译为可重放脚本 | `cloud_ip`              | Android Control API + CLI    |
 | `operate-vmos-edge-cli`  | 操控 VMOS Edge Desktop 桌面端，通过 CLI 创建/管理云机、CDP 自动化 UI、YAML 剧本批量执行 | 本地 Desktop 应用 | Electron CDP + CLI |
+| `vmos-edge-flowsmith`     | 写 VMOS Edge 的 YAML flow 自动化脚本，含语法参考、陷阱清单、可抄结构与静态校验器 | `host_ip` + 云机 ID | Android Control API + Flow Engine |
 
 control skill 的连接入口要看当前是否同时安装了 container skill：
 
@@ -48,6 +49,12 @@ npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill workflow-ski
 
 ```bash
 npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill operate-vmos-edge-cli
+```
+
+安装 flowsmith skill（写 YAML flow 脚本）：
+
+```bash
+npx skills add https://github.com/vmos-dev/vmos-edge-skills --skill vmos-edge-flowsmith
 ```
 
 `skills` CLI 会把这个仓库分发给 Codex、Cursor、Claude Code、Gemini CLI、GitHub Copilot、OpenClaw 等兼容 agent。
