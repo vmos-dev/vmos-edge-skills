@@ -33,7 +33,7 @@ STRING_COMMANDS = {
     'launchApp', 'stopApp', 'killApp', 'clearState', 'eraseText',
     'inputRandomText', 'inputRandomNumber', 'inputRandomEmail',
     'inputRandomPersonName', 'back', 'hideKeyboard', 'hide keyboard',
-    'pasteText', 'scroll', 'waitForAnimationToEnd',
+    'pasteText', 'scroll', 'waitForAnimationToEnd', 'break',
 }
 
 OBJECT_COMMANDS = {
@@ -45,7 +45,7 @@ OBJECT_COMMANDS = {
     'evalScript', 'scrollUntilVisible', 'setAirplaneMode', 'back', 'hideKeyboard',
     'scroll', 'pasteText', 'inputRandomText', 'inputRandomNumber',
     'inputRandomEmail', 'inputRandomPersonName', 'setPermissions',
-    'defineVariables', 'shell', 'sleep', 'httpRequest',
+    'defineVariables', 'shell', 'sleep', 'httpRequest', '2fa', 'break',
 }
 ALL_COMMANDS = STRING_COMMANDS | OBJECT_COMMANDS
 
@@ -71,10 +71,17 @@ SCALAR_ONLY = {'inputText', 'setClipboard', 'takeScreenshot',
 
 # 硬编码不支持 optional 的命令(写了也不生效)
 NO_OPTIONAL = {'assertTrue', 'inputText', 'evalScript', 'shell', 'setClipboard',
-               'takeScreenshot', 'pressKey', 'defineVariables', 'branch'}
+               'takeScreenshot', 'pressKey', 'defineVariables', 'branch', 'break'}
 
 # 断言类 —— 放在嵌套块里保护不了父流程
 ASSERT_CMDS = {'assertVisible', 'assertNotVisible', 'assertTrue'}
+
+# 循环内操作 UI 却没有显式随机等待，容易形成高频固定节奏。
+UI_INTERACTION_CMDS = {
+    'tapOn', 'longPressOn', 'doubleTapOn', 'swipe', 'scroll',
+    'scrollUntilVisible', 'inputText', 'eraseText', 'pressKey', 'back',
+    'hideKeyboard', 'hide keyboard', 'pasteText', 'launchApp', 'openLink',
+}
 
 # 看着像系统命令的开头 —— shell 其实是 evalScript 的别名,内容会被当脚本执行
 SHELLISH = re.compile(r'^\s*(pm|am|adb|input|settings|dumpsys|getprop|svc|monkey|'
@@ -164,8 +171,11 @@ def check_config(cfg, rep):
 def check_condition(cond, path, rep, what='when'):
     if cond is None:
         return
+    if what == 'while' and isinstance(cond, bool):
+        return
     if not isinstance(cond, dict):
-        rep.err(path, 'COND_SHAPE', '%s 必须是对象(如 { visible: "文字" })' % what)
+        hint = '或布尔值 true/false' if what == 'while' else ''
+        rep.err(path, 'COND_SHAPE', '%s 必须是对象(如 { visible: "文字" })%s' % (what, hint))
         return
     known = [k for k in cond if k in CONDITION_FIELDS]
     unknown = [k for k in cond if k not in CONDITION_FIELDS and k != 'label']
@@ -267,6 +277,34 @@ def _check_percent_bounds(val, path, rep):
                     '百分比坐标 %s%% 超出 0~100 —— 引擎会抛错,不是裁剪' % num)
 
 
+def contains_scoped_break(node):
+    """查找能退出当前 repeat 的 break，不把内层 repeat 的 break 算作外层出口。"""
+    if node == 'break':
+        return True
+    if isinstance(node, list):
+        return any(contains_scoped_break(item) for item in node)
+    if not isinstance(node, dict):
+        return False
+    if 'break' in node:
+        return True
+    if 'repeat' in node:
+        return False
+    return any(contains_scoped_break(value) for value in node.values())
+
+
+def contains_any_command(node, names):
+    """递归判断命令树是否包含 names 中的命令。"""
+    if isinstance(node, str):
+        return node in names
+    if isinstance(node, list):
+        return any(contains_any_command(item, names) for item in node)
+    if not isinstance(node, dict):
+        return False
+    if any(name in node for name in names):
+        return True
+    return any(contains_any_command(value, names) for value in node.values())
+
+
 def check_command(name, params, path, rep, ctx):
     style = ctx['style']
 
@@ -297,6 +335,11 @@ def check_command(name, params, path, rep, ctx):
     if name in NO_OPTIONAL and isinstance(params, dict) and 'optional' in params:
         rep.warn(path, 'OPTIONAL_NOOP',
                  '%s 硬编码不支持 optional,写了不生效 —— 它失败就是失败' % name)
+
+    # ── break 是 repeat 作用域内的控制流,不是全局停止命令 ──
+    if name == 'break' and not ctx['in_repeat']:
+        rep.err(path, 'BREAK_OUTSIDE_REPEAT',
+                'break 只能在 repeat.commands 内使用;它只退出最近一层 repeat,不能停止整个任务')
 
     # ── 嵌套块里的断言保护不了父流程 ──
     if name in ASSERT_CMDS and ctx['in_block']:
@@ -448,18 +491,25 @@ def check_command(name, params, path, rep, ctx):
                      % params)
 
     if name == 'repeat' and isinstance(params, dict):
+        body = params.get('commands')
         if not any(k in params for k in ('times', 'duration', 'while')):
-            rep.warn(path, 'REPEAT_UNBOUNDED',
-                     'repeat 没有 times / duration / while —— 会一直跑到隐式上限'
-                     '(1000 次或 30 分钟),收敛不可控')
+            rep.warn(path, 'REPEAT_IMPLICIT_INFINITE',
+                     'repeat 没有 times / duration / while —— 现在没有任何隐式上限,会无限运行。'
+                     '若这是有意设计,显式写 while: true;否则补停止条件')
         check_condition(params.get('while'), path + '.while', rep, what='while')
-        t = params.get('times')
-        try:
-            if t is not None and '${' not in str(t) and float(str(t)) > 1000:
-                rep.warn(path + '.times', 'REPEAT_CAP',
-                         'times=%s 会被截断到上限 1000' % t)
-        except ValueError:
-            pass
+        explicit_infinite = params.get('while') is True \
+            and 'times' not in params and 'duration' not in params
+        implicit_infinite = not any(k in params for k in ('times', 'duration', 'while'))
+        if (explicit_infinite or implicit_infinite) \
+                and not contains_scoped_break(body):
+            rep.warn(path, 'REPEAT_NO_BREAK',
+                     '这个无限循环里没有可见的 break —— 只能靠任务取消或服务停止结束。'
+                     '长跑业务优先放一个按界面/计数状态触发的 break')
+        if ctx['style'] and contains_any_command(body, UI_INTERACTION_CMDS) \
+                and not contains_any_command(body, {'sleep'}):
+            rep.warn(path, 'REPEAT_NO_PACING',
+                     '循环体操作了 UI 但没有 sleep —— 会形成无显式间隔的重复节奏。'
+                     '在每轮加入 sleep: [min, max] 随机区间')
 
     if name == 'branch':
         if not isinstance(params, list):
@@ -490,6 +540,32 @@ def check_command(name, params, path, rep, ctx):
             rep.warn(path + '.retry', 'HTTP_RETRY_NOOP',
                      '设了 retry 但没有 jsonPath —— 引擎只在 jsonPath 抽不到值时才重试,'
                      '这里的 retry 不会生效')
+
+    if name == '2fa' and not isinstance(params, dict):
+        rep.err(path, 'TWO_FA_SHAPE',
+                '2fa 必须使用对象形态，包含 code 和 outputVariable')
+
+    if name == '2fa' and isinstance(params, dict):
+        code = params.get('code')
+        output = params.get('outputVariable')
+        if code is None or str(code).strip() == '':
+            rep.err(path + '.code', 'TWO_FA_CODE_REQUIRED', '2fa.code 必填(Base32 TOTP 密钥)')
+        elif isinstance(code, str) and not is_dynamic(code):
+            normalized = re.sub(r'[\s-]', '', code.upper()).rstrip('=')
+            if not normalized or not re.match(r'^[A-Z2-7]+$', normalized):
+                rep.err(path + '.code', 'TWO_FA_BASE32',
+                        '2fa.code 不是有效 Base32 TOTP 密钥(允许空格、连字符和末尾 = padding)')
+            else:
+                rep.warn(path + '.code', 'TWO_FA_LITERAL_SECRET',
+                         '2fa 密钥被直接写进 YAML —— 流程定义会随任务记录保留。'
+                         '改成 ${TOTP_SECRET},真实值由调度端 env 注入')
+        if output is None or str(output).strip() == '':
+            rep.err(path + '.outputVariable', 'TWO_FA_OUTPUT_REQUIRED',
+                    '2fa.outputVariable 必填,例如 otp;后续用 ${otp} 引用')
+        elif not is_dynamic(output) and not re.match(r'^[A-Za-z_$][\w$]*$', str(output)):
+            rep.warn(path + '.outputVariable', 'OUTPUT_VAR_NAME',
+                     'outputVariable 建议使用 JS 标识符形式(如 otp / loginOtp),'
+                     '否则无法直接用 ${变量名} 引用')
 
     if name == 'defineVariables' and isinstance(params, dict):
         for k, v in params.items():
@@ -525,6 +601,9 @@ def walk_commands(items, path, rep, ctx):
         if isinstance(item, str):
             if item not in STRING_COMMANDS:
                 _unknown(item, p, rep, bare=True)
+            elif item == 'break' and not ctx['in_repeat']:
+                rep.err(p, 'BREAK_OUTSIDE_REPEAT',
+                        'break 只能在 repeat.commands 内使用;它只退出最近一层 repeat,不能停止整个任务')
             continue
         if not isinstance(item, dict):
             rep.err(p, 'ITEM_SHAPE', '命令项必须是字符串或单键对象')
@@ -573,6 +652,8 @@ TEMPLATE = re.compile(r'\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}')
 IDENT = re.compile(r'(?<![.\w$])([A-Za-z_$][\w$]*)')
 # 字符串字面量里的词不是变量名(`${mode === 'dm'}` 里的 dm),取标识符前先剥掉
 STRLIT = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
+# 正则字面量里的转义符和字符类不是变量名，例如 /^\d{6}$/.test(otp)。
+REGEXLIT = re.compile(r'/(?:\\.|[^/\\\n])+/[dgimsuvy]*')
 ASSIGN = re.compile(r'(?<![=!<>])\b([A-Za-z_$][\w$]*)\s*=(?!=)')
 
 
@@ -600,7 +681,8 @@ def _scan_defs(node, acc):
                 acc.update(ASSIGN.findall(v['script']))
             if isinstance(v.get('env'), dict):
                 acc.update(str(n) for n in v['env'])
-        elif k == 'httpRequest' and isinstance(v, dict) and v.get('outputVariable'):
+        elif k in ('httpRequest', '2fa') and isinstance(v, dict) \
+                and v.get('outputVariable'):
             acc.add(str(v['outputVariable']))
         _scan_defs(v, acc)
 
@@ -641,7 +723,8 @@ def check_undefined_refs(node, path, rep, defined):
     if not isinstance(node, str):
         return
     for expr in TEMPLATE.findall(node):
-        for ident in IDENT.findall(STRLIT.sub("''", expr)):
+        expression = REGEXLIT.sub('//', STRLIT.sub("''", expr))
+        for ident in IDENT.findall(expression):
             if ident in BUILTINS or ident in defined:
                 continue
             rep.warn(path, 'UNDEF_VAR',

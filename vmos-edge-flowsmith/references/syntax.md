@@ -36,7 +36,7 @@ exceptionHandlers:            # 可选,见下
 
 **参数化的正确姿势。** 会变的量(账号 / 文案 / 目标数 / 时长)一律设计成变量,`env:` 只写默认值,
 真实值由调度端按设备注入。注入进来的值是**锁定的**:YAML 里的 `env:` 声明、`defineVariables`、
-`runScript.env`、`httpRequest.outputVariable` 都覆盖不了它(唯一例外是 `evalScript` / `runScript`
+`runScript.env`、`httpRequest.outputVariable`、`2fa.outputVariable` 都覆盖不了它(唯一例外是 `evalScript` / `runScript`
 **脚本体里的直接赋值** —— 别给锁定变量名赋值)。注入值**永远是字符串**,做算术先 `Number()`。
 
 **exceptionHandlers**:每条命令执行前主动清弹窗、命令失败后再试一遍,同一条命令最多被救 5 次。
@@ -77,17 +77,17 @@ exceptionHandlers:
 | | `waitForAnimationToEnd` / `sleep` | 等动画结束 / 延时 |
 | **App** | `launchApp` / `stopApp` / `killApp` / `clearState` | 启动 / 停止 / 停止(`killApp` 与 `stopApp` **同一实现**) / 清数据 |
 | | `openLink` / `setPermissions` | 打开链接 / 设权限 |
-| **流程** | `repeat` | 循环(次数 / 时长 / 条件) |
+| **流程** | `repeat` / `break` | 循环(次数 / 时长 / 条件) / 退出最近一层循环 |
 | | `branch` | 多分支,取第一个命中的 |
 | | `runFlow` | 内联子流程(**只能内联**) |
 | | `retry` | 失败重试 —— **但它捕获不到普通命令失败,实际一次都不会重试** |
 | **变量脚本** | `defineVariables` / `evalScript`(别名 `shell`) / `runScript` | 定义变量 / 跑表达式 / 跑脚本 |
-| | `httpRequest` | 发请求、抽字段进变量 |
+| | `httpRequest` / `2fa` | 发请求、抽字段进变量 / 根据 Base32 密钥生成 TOTP 变量 |
 | **设备** | `setLocation` / `setAirplaneMode` / `takeScreenshot` | 定位 / 飞行模式 / 截图 |
 
 **无参裸写形式**(直接 `- 命令名`)只有这些:`launchApp` `stopApp` `killApp` `clearState` `eraseText`
 `inputRandomText` `inputRandomNumber` `inputRandomEmail` `inputRandomPersonName` `back` `hideKeyboard`
-`hide keyboard` `pasteText` `scroll` `waitForAnimationToEnd`。其余必须带参数。
+`hide keyboard` `pasteText` `scroll` `waitForAnimationToEnd` `break`。其余必须带参数。
 
 ---
 
@@ -204,12 +204,21 @@ exceptionHandlers:
 
 ```yaml
 - repeat:
-    times: "20"                    # 上限 1000
-    duration: "600000"             # ms;不写也有 30 分钟隐式上限。与 times 同时写 = 先到先停
-    while: { visible: "还有下一条" } # 每轮重新求值,不成立就结束
+    times: "100000"                # 可选:最多执行多少轮,没有引擎内置最大次数
+    duration: "432000000"          # 可选:最多运行多久(ms),这里是 5 天
+    while: { visible: "还有下一条" } # 可选:每轮重新求值,不成立就结束
     commands:
       - swipe: UP
       - sleep: [3000, 8000]
+
+# 三个停止条件只在传入时生效;同时传入时任意一个先达到就停止。
+# 只写 while:true 是显式无限循环,用 break 按循环体内业务状态退出。
+- repeat:
+    while: true
+    commands:
+      - break:
+          when: { visible: "没有更多内容" }
+      - swipe: UP
 
 - branch:                          # 参数必须是数组
     - when: { visible: "从图片库选择" }
@@ -228,6 +237,10 @@ exceptionHandlers:
     commands: [ ... ]
 ```
 
+`repeat` 三个停止条件都不传时也是无限循环,但不如 `while: true` 意图清楚。无限循环只能通过最近一层的
+`break`、任务取消或服务停止结束。`break` 可裸写(`- break`)或写对象以携带 `when` / `chance` / `label`;
+循环外使用会让流程失败。嵌套循环中它只退出最近的一层,与普通 for 循环一致。
+
 `repeat` 一轮都没跑(首次求值条件就不成立)或 `branch` 所有分支都不中 → 该命令记为跳过,**不算失败**。
 
 ### 变量脚本与请求
@@ -236,7 +249,7 @@ exceptionHandlers:
 - defineVariables:
     counter: 0
     comments: "['好看','不错','666']"
-- evalScript: "${counter = counter + 1}"      # 外层 ${} 写不写都行,等价
+- evalScript: "counter = counter + 1"         # 脚本体是裸 JavaScript，不做模板插值
 - evalScript: "comments = ['a','b','c']"
 - runScript:
     script: "result = a + b"                  # 脚本必须直接写在这里,file: 指向的文件不会被读取
@@ -249,7 +262,16 @@ exceptionHandlers:
     outputVariable: code                      # 结果存进 ${code}
     jsonPath: "data.code"                     # 点分路径;数组用 data.0.code,不支持 data[0] 方括号
     retry: { times: 10, interval: [3000, 5000] }
+
+- 2fa:
+    code: "${TOTP_SECRET}"                    # 必填:Base32 TOTP 密钥,用环境变量传入
+    outputVariable: otp                       # 必填:验证码存进 ${otp}
+- inputText: "${otp}"
 ```
+
+`2fa` 生成标准 TOTP(SHA-1、30 秒周期、6 位数字)。`code` 接受 Base32 的大小写字母、数字 2~7,
+也接受用于展示的空格、连字符和末尾 `=` padding。**不要把真实密钥写进 YAML**:流程定义会随任务记录保留;
+只在顶部 `env` 放非敏感占位,真实值由调度端注入。输出变量和 `httpRequest.outputVariable` 的语法完全一致。
 
 `httpRequest` 有几个反直觉行为,都会咬人:
 
@@ -333,7 +355,7 @@ tapOn:
 ## §5 条件
 
 
-条件对象**只认 4 个字段**:
+除 `repeat.while: true/false` 外,条件对象**只认 4 个字段**:
 
 ```yaml
 visible: { text: "加载中" }     # 或字符串简写 visible: "加载中"
@@ -347,6 +369,7 @@ label: "描述"                   # 仅日志
 **所有字段都不认识时(比如写了 `platform:`),条件恒为真。**
 
 条件出现在四处:`repeat.while`、`branch` 每个分支的 `when`、`extendedWaitUntil`、**任意命令的 `when`**。
+`repeat.while` 额外接受布尔值:`true` 表示该条件永远不负责停止(显式无限),`false` 表示一轮也不执行。
 
 ```yaml
 - tapOn: { text: "下一步", when: { true: "${step > 2}" } }   # 任意命令都能挂 when
@@ -367,6 +390,8 @@ label: "描述"                   # 仅日志
 - **哪些地方会替换 `${}`**:命令的**所有字符串字段**,每条命令执行前统一插值一次。
 - **哪些地方不插值(故意的)**:`commands` 和 `branch` 的分支(子命令轮到自己执行时再插,否则 `${Math.random()}`
   会被冻死)、`condition`(否则 `${i < 10}` 冻成常量 → 死循环)、脚本体(那本来就是代码)。
+  `evalScript: "${x = 1}"` 仅作为旧写法兼容，会剥掉包住整个脚本体的一层 `${...}`；新脚本统一写
+  `evalScript: "x = 1"`。脚本体内部的 `${...}` 不会插值。
 - **`${}` 里就是表达式**:`${a + b}`、`${list[Math.floor(Math.random()*list.length)]}`、`${mode === 'dm'}`。
 - **下列数值 / 布尔字段支持 `${}`**,解析期原样保留、运行时才转换 —— **清单以外的布尔字段不要写 `${}`**(见本节末尾):
   `sleep`(含 `[min,max]` 两端)、`swipe.duration` / `direction`、`repeat.times` / `duration`、
@@ -403,7 +428,7 @@ label: "描述"                   # 仅日志
   `console.log` 能调用但**输出没有任何地方接收**,别指望用它调试。别在 `${}` 里写重活 ——
   超时会**终止整个任务**(顶层命令的 `${}` 求值不在保护区内)。
 - **作用域**:**只有 `runFlow` 和 `retry` 开新作用域**,而且**回收只管一部分变量** ——
-  被回收的是 `defineVariables` / `runScript.env` / `httpRequest.outputVariable` 定义的;
+  被回收的是 `defineVariables` / `runScript.env` / `httpRequest.outputVariable` / `2fa.outputVariable` 定义的;
   **`evalScript` 里 `x = ...` 的直接赋值不受作用域管,永远留在外面**。
   所以要把子流程里算出的值带出来,**用 `evalScript` 赋值**(不需要外层占位);
   反过来用 `defineVariables` 一定带不出来 —— 出块时会被还原成外层的旧值。
@@ -438,8 +463,10 @@ label: "描述"                   # 仅日志
 | `waitForAnimationToEnd` | 15,000 ms |
 | `swipe.duration` 默认 | 400 ms |
 | `scrollUntilVisible` 超时 / 速度 | 20,000 ms / 40 |
-| `repeat.times` 上限 | **1,000 次**,超了静默截断 |
-| `repeat` 不写 duration 时的隐式上限 | **30 分钟** |
+| `repeat.times` | 无内置上限,完全按传入值执行 |
+| `repeat.duration` | 无隐式默认;只在传入时生效 |
+| `repeat.while` | 无默认;`true` 为显式无限循环 |
+| 无限循环退出 | 最近一层 `break` / 任务取消 / 服务停止 |
 | `retry.maxRetries` 上限 | **3** |
 | 单条命令被异常处理器搭救 | 最多 5 次 |
 | `eraseText` 默认 | 50 个字符 |
@@ -461,8 +488,8 @@ label: "描述"                   # 仅日志
 
 要留出确定的等待窗口,把等待挪到断言**之后**,或改用 `extendedWaitUntil` 显式给 timeout。
 
-⚠️ **推算能跑多久。** `repeat.duration` 想跑 2 小时做不到 —— 1000 次迭代上限会先到。
-单轮 6 秒 → 约 100 分钟封顶。要更久就拆成多个任务,或多层 `repeat` 嵌套。
+⚠️ **推算能跑多久。** 循环没有隐藏的次数或时长兜底。`times: 100000`、`duration: 432000000`
+(5 天)都会按传入值生效;同时给多个停止条件时按先到者停止。长跑脚本必须保留任务取消能力,
+并优先设计业务可达的 `break`,避免错误条件导致无人值守地持续运行。
 
 ---
-

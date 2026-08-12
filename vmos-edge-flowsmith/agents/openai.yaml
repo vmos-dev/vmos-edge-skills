@@ -1,0 +1,4 @@
+interface:
+  display_name: "VMOS Edge Flowsmith"
+  short_description: "设计、校验并排障 VMOS Edge YAML Flow"
+  default_prompt: "使用 $vmos-edge-flowsmith 编写并校验一份可真机执行的 VMOS Edge YAML flow。"

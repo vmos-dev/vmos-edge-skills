@@ -1,10 +1,9 @@
 # 常用结构
 
-抄来改,别从零发明。每个结构都已经把失败语义和拟人化底线考虑进去了 ——
-**你要改的是选择器和数值,不是结构。**
+选择最接近的结构，再替换选择器、变量和数值。保留顶层收口与停止策略。
 
 **目录**:1 骨架 · 2 启动与锚点 · 3 轮询重试 · 4 有界批量 · 5 无限流浏览 · 6 弹窗 ·
-7 多态页面 · 8 取验证码 · 9 翻列表 · 10 计数与收口
+7 多态页面 · 8 验证码(2FA / 远端接口) · 9 翻列表 · 10 计数与收口
 
 ## §1 一份脚本的骨架
 
@@ -55,17 +54,16 @@ exceptionHandlers:            # 随时可能冒出来的弹窗放这里(必现�
 ```yaml
 - repeat:
     times: "5"
-    while: { notVisible: "提交成功" }      # 成功了就自然停
     commands:
       - tapOn: { text: "提交", optional: true }
       - sleep: [1500, 3000]
+      - break:
+          when: { visible: "提交成功" }    # 成功即退出当前 repeat
 - assertVisible: "提交成功"                 # ★ 顶层收口,真失败在这里暴露
 ```
 
-这里的 `notVisible` 每轮要轮询满 7 秒才判假 —— **在这个场景里那 7 秒本来就是在等结果出现,不算亏**。
-但同样的写法用在"还有没有下一条"这类守卫上就是纯亏,那种场合改用 `visible`(见 `syntax.md` §5)。
-```yaml
-```
+`break` 只退出最近一层循环,循环外的顶层断言仍会执行。这里同时保留 `times` 是为了给重试次数设硬边界;
+`break` 负责成功后的提前结束,两种策略职责清楚。
 
 ## §4 有界批量动作(私信 / 关注 / 删除)
 
@@ -104,7 +102,19 @@ exceptionHandlers:            # 随时可能冒出来的弹窗放这里(必现�
       - tapOn: { text: "点赞视频。.*", optional: true, chance: 0.4 }
 ```
 
-无限流通常没有"到底"标志,靠时长收敛即可。**注意迭代次数硬上限会先于时长到**(`syntax.md` §7)。
+无限流通常没有"到底"标志,靠时长收敛即可。`duration` 是唯一时长边界,引擎不会再追加隐式次数上限。
+
+如果业务要求"一直跑到页面出现结束信号",明确写 `while: true` 并放一个可达的 `break`:
+
+```yaml
+- repeat:
+    while: true
+    commands:
+      - break:
+          when: { visible: "没有更多内容" }
+      - swipe: { direction: UP, duration: [200, 500], waitToSettleTimeoutMs: 0 }
+      - sleep: [1200, 2600]
+```
 
 ## §6 弹窗:偶发的自动拦,必现的写主干
 
@@ -136,7 +146,24 @@ exceptionHandlers:            # 随时可能冒出来的弹窗放这里(必现�
 - assertTrue: "${!onUnknownPage}"             # 顶层收口
 ```
 
-## §8 从接口取验证码
+## §8 验证码:本地 2FA 或远端接口
+
+账号的验证器密钥已知时,直接用 `2fa` 在本地生成 TOTP,不发网络请求:
+
+```yaml
+env:
+  TOTP_SECRET: ""                           # 仅占位;真实密钥由调度端按设备注入
+---
+- 2fa:
+    code: "${TOTP_SECRET}"
+    outputVariable: otp
+- tapOn: { id: "code_input" }
+- inputText: "${otp}"
+```
+
+输出变量名仍是标准 `outputVariable`,后续统一用 `${otp}`。不要把真实密钥写进 YAML。
+
+验证码来自短信平台或业务接口时才用 `httpRequest`:
 
 ```yaml
 - defineVariables: { code: "" }               # ★ 先占位:引用未定义变量会终止整个任务
@@ -168,7 +195,7 @@ exceptionHandlers:            # 随时可能冒出来的弹窗放这里(必现�
 
 ## §10 计数与顶层收口
 
-循环和分支不开新作用域(规则见 `syntax.md` §6),所以计数器能跨轮累加:
+循环和分支不开新作用域，所以计数器能跨轮累加：
 
 ```yaml
 - defineVariables: { sent: 0 }

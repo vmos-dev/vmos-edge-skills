@@ -7,6 +7,6 @@ AGENTS.md
 .claude/skills/
 skills/
 skills-lock.json
-
+tests
 # Local env/state files
 .DS_Store

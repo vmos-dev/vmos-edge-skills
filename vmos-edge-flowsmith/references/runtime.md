@@ -1,6 +1,6 @@
 # 跑起来:提交、看回执、取消
 
-脚本写完不是终点。这份讲怎么交给引擎跑、怎么读逐条状态定位问题、怎么中止跑飞的任务。
+用于提交 flow、读取逐条状态和取消活跃任务。
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```bash
 ENGINE=http://{主机IP}:47218                              # 引擎,默认端口
-DEV=http://{主机IP}:18182/android_api/v2/{云机ID}          # 设备驱动,同 device.md
+DEV=http://{主机IP}:18182/android_api/v2/{云机ID}          # 设备驱动
 
 # 提交执行
 curl -X POST $ENGINE/flow/execute -H 'Content-Type: application/json' -d "{
@@ -59,7 +59,7 @@ curl -X POST $ENGINE/flow/cancel -H 'Content-Type: application/json' \
 | 一片 SKIPPED | 条件没成立,或变量名拼错求值成空 | 检查条件字段和变量名 |
 | WARNED | `optional` 的元素没找到 | 通常无害;若在关键路径说明选择器写错了 |
 | 卡在某条很久 | 元素找不到,在等超时 | 核实选择器,或确认那一屏真的会出现 |
-| 全绿但没干活 | 失败被嵌套块吞了,或子流程空跑 | 见 `gotchas.md` §3,加顶层收口 |
+| 全绿但没干活 | 失败被嵌套块吞了,或子流程空跑 | 检查嵌套失败语义并增加顶层收口 |
 | 明明界面上有,却报找不到 | 元素露出不足 10%,已被视野过滤剔除 | 先 `scrollUntilVisible` 滚出来再点 |
 | 从某条起所有元素全找不到 | 设备界面结构拉不到时,引擎会静默替换成空界面 | 用驱动的 dump 接口自己验一下,必要时重启 App / 云机 |
 
@@ -67,5 +67,4 @@ curl -X POST $ENGINE/flow/cancel -H 'Content-Type: application/json' \
 任务级 `error` 是**最近一条失败命令**的错误,任务还在跑时就会出现,不是终态结论。
 
 每台设备不同的量(账号、文案、目标数)放进各自的 `devices[].env`,一次提交给多台就各注各的。
-这些注入值在脚本里是**只读**的,写法上要配合什么,见 `syntax.md` §1。
-
+这些注入值在脚本里是**只读**的；不要在 flow 内覆盖同名变量。
